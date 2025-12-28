@@ -1,0 +1,214 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{hmargin=2.5cm,vmargin=2.5cm}
+
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{purple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\title{\textbf{TP 5 -- Deep Learning}\\ \large Modélisation de séquences et mécanismes d’attention}
+\author{\textbf{Donfack Pascal Arthur} \\ Encadrant : Dr Louis Fippo}
+\date{\today}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    {\LARGE \textbf{ENSPY -- Université de Yaoundé I}} \\
+    \vspace{0.5cm}
+    {\Large Master 2 -- Recherche} \\
+    \vspace{2cm}
+    
+    {\Huge \textbf{TP 5 -- Deep Learning}} \\
+    \vspace{0.5cm}
+    {\Large \textit{Modélisation de séquences et mécanismes d’attention}} \\
+    
+    \vspace{3cm}
+    
+    \textbf{Auteur :} \\
+    Donfack Pascal Arthur \\
+    
+    \vspace{1cm}
+    
+    \textbf{Encadrant :} \\
+    Dr Louis Fippo \\
+    
+    \vspace{3cm}
+    
+    \textbf{Année Académique :} 2025-2026 \\
+    \textbf{Date :} \today
+    
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+\section{Introduction Générale}
+Le traitement des données séquentielles a connu une révolution majeure avec l'avènement du Deep Learning. Historiquement dominé par les Réseaux de Neurones Récurrents (RNN) tels que les LSTM et GRU, le domaine a été transformé par l'introduction des mécanismes d'attention. Ces mécanismes permettent de s'affranchir des contraintes de mémorisation séquentielle en permettant au modèle de focaliser son "attention" sur des parties spécifiques de l'entrée, quelle que soit leur position temporelle.
+
+Ce Travail Pratique (TP) vise à explorer ces concepts fondamentaux à travers une approche progressive, allant de l'implémentation basique d'une couche d'attention sur un RNN jusqu'à la conception d'une architecture Séquence-à-Séquence (Seq2Seq) complète pour la prédiction de séries temporelles, intégrant un suivi expérimental rigoureux via MLflow.
+
+\section{Contexte et Objectifs}
+L'objectif principal est de maîtriser l'implémentation et l'analyse des mécanismes d'attention. Plus spécifiquement :
+\begin{itemize}
+    \item \textbf{Partie 1} : Implémenter "from scratch" une couche d'attention simple et l'intégrer à un modèle GRU.
+    \item \textbf{Partie 2} : Concevoir un modèle Seq2Seq combinant un encodeur Bi-LSTM et un décodeur à attention croisée (Cross-Attention) pour résoudre un problème de prédiction sur données synthétiques.
+    \item \textbf{Partie 3} (Challenge Recherche) : Proposer des améliorations architecturales à un modèle d'état de l'art (TAP) pour la cohérence temporelle longue (traitée dans un article séparé).
+\end{itemize}
+
+Une attention particulière est portée à la qualité du code (modularité, clarté) et à la méthodologie expérimentale (reproductibilité, analyse des poids d'attention).
+
+\section{Fondements Théoriques}
+
+Cette section aborde les concepts clés nécessaires à la compréhension des mécanismes d'attention, en répondant spécifiquement aux questions théoriques posées dans le sujet.
+
+\subsection{Attention par Produit Scalaire Mis à l’Échelle (Scaled Dot-Product Attention)}
+L'attention par produit scalaire est le mécanisme central des architectures modernes comme le Transformer.
+
+\subsubsection{Formulation Mathématique}
+Étant donnés une matrice de requêtes $Q$ (Queries), une matrice de clés $K$ (Keys) et une matrice de valeurs $V$ (Values), les poids d'attention sont calculés selon la formule suivante :
+\[
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\]
+Où $d_k$ représente la dimension des vecteurs de clés.
+
+\subsubsection{Rôle du Facteur de Mise à l’Échelle}
+La division par $\sqrt{d_k}$ est fondamentale pour la stabilité de l'apprentissage.
+\textbf{Justification :} Lorsque la dimension $d_k$ est grande, le produit scalaire $q \cdot k$ peut atteindre des valeurs très élevées (en magnitude). Sans cette normalisation, les logits passés à la fonction softmax seraient très grands, poussant les sorties de la softmax vers 0 ou 1 (saturation). Dans ces zones saturées, les gradients de la fonction softmax sont extrêmement faibles (proches de zéro), ce qui empêche la rétropropagation efficace de l'erreur et bloque l'apprentissage ("Vanishing Gradient Problem"). Le facteur $\frac{1}{\sqrt{d_k}}$ ramène l'ordre de grandeur du produit scalaire à une variance unitaire (si $Q$ et $K$ sont normalisés), garantissant des gradients fluides.
+
+\subsection{Distinction Self-Attention vs Cross-Attention}
+Bien que la formule mathématique soit identique, la différence réside dans la \textbf{provenance} des données alimentant $Q$, $K$ et $V$.
+
+\begin{itemize}
+    \item \textbf{Self-Attention (Auto-attention)} :
+    \begin{itemize}
+        \item \textbf{Provenance} : $Q$, $K$ et $V$ proviennent tous de la \textit{même} séquence d'entrée (par exemple, la sortie de la couche précédente de l'encodeur).
+        \item \textbf{Objectif} : Modéliser les dépendances internes à la séquence. Par exemple, dans la phrase "L'animal a traversé la rue car il était pressé", la self-attention permet au modèle d'associer "il" à "animal".
+    \end{itemize}
+    
+    \item \textbf{Cross-Attention (Attention croisée)} :
+    \begin{itemize}
+        \item \textbf{Provenance} : $Q$ provient de la séquence \textit{cible} (décodeur), tandis que $K$ et $V$ proviennent de la séquence \textit{source} (sortie de l'encodeur).
+        \item \textbf{Objectif} : Aligner la génération actuelle avec l'information pertinente de la source. C'est le "pont" entre l'encodeur et le décodeur dans les modèles Seq2Seq, permettant de traduire ou de transcrire en se focalisant sur les bons segments de l'entrée.
+    \end{itemize}
+\end{itemize}
+
+\section{Partie 1 : Implémentation de l'Attention de Base}
+
+\subsection{Conception de la Couche SimpleAttention}
+Conformément aux consignes, nous avons développé une couche personnalisée \texttt{SimpleAttention} en héritant de la classe \texttt{keras.layers.Layer}. Cette approche "bas niveau" permet de comprendre la mécanique interne du calcul des poids.
+
+L'implémentation repose sur le mécanisme de \textit{Bahdanau (Additive) Attention} simplifié ou \textit{Global Attention}. Pour une séquence d'entrée $H = \{h_1, ..., h_T\}$, le calcul se déroule en trois étapes vectorisées :
+
+1.  \textbf{Calcul des scores d'énergie} : Une projection linéaire suivie d'une activation tangente hyperbolique.
+    \[ e_t = \text{tanh}(W h_t + b) \]
+    Dans notre code, $W$ est une matrice de poids $(d_{hidden}, 1)$ apprenable.
+    
+2.  \textbf{Calcul des poids d'alignement} : Normalisation par Softmax le long de l'axe temporel.
+    \[ \alpha_t = \frac{\exp(e_t)}{\sum_{k=1}^T \exp(e_k)} \]
+    
+3.  \textbf{Calcul du vecteur de contexte} : Somme pondérée des états cachés.
+    \[ c = \sum_{t=1}^T \alpha_t h_t \]
+
+\subsection{Architecture du Modèle Hybride}
+Le modèle final combine la capacité de mémoire séquentielle des GRU avec la capacité de focalisation de l'attention :
+\begin{itemize}
+    \item \textbf{Entrée} : Séquence de vecteurs $(Batch, Time, Features)$.
+    \item \textbf{Couche Récurrente} : GRU avec 64 unités cachées. L'argument \texttt{return\_sequences=True} est esssentiel pour fournir l'ensemble des états $\{h_t\}$ à la couche d'attention, et non juste le dernier état.
+    \item \textbf{Couche d'Attention} : Notre classe \texttt{SimpleAttention} qui réduit la dimension temporelle en un vecteur de contexte unique de taille 64.
+    \item \textbf{Sortie} : Couche Dense pour la prédiction finale.
+\end{itemize}
+
+\subsection{Validation Expérimentale}
+Pour valider l'implémentation, nous avons conçu un script de test (\texttt{Part1/experiments/run\_experiment.py}) générant des données aléatoires.
+\textbf{Points de vérification validés :}
+\begin{itemize}
+    \item \textbf{Intégrité des dimensions} : La sortie de la couche d'attention est bien $(Batch, 64)$.
+    \item \textbf{Normalisation} : Nous avons extrait les valeurs de $\alpha_t$ et vérifié numériquement que $\sum \alpha_t = 1.0$ (à la précision \texttt{float32} près).
+    \item \textbf{Convergence} : Le modèle apprend sur des données synthétiques simples, prouvant que le gradient se propage correctement à travers le mécanisme d'attention personnalisé.
+\end{itemize}
+
+\section{Partie 2 : Modélisation Séquence-à-Séquence Avancée}
+
+\subsection{Protocole Expérimental}
+\subsubsection{Jeu de Données Synthétique}
+Afin de contrôler précisément les propriétés temporelles, nous avons développé un générateur de signaux (\texttt{Part2/data/generator.py}). Les séquences sont construites par superposition :
+\[ x(t) = \sin(2\pi f_1 t) + 0.5\sin(2\pi f_2 t) + \alpha t + \epsilon \]
+Où $f_1, f_2$ sont des fréquences aléatoires, $\alpha$ une tendance linéaire, et $\epsilon$ un bruit gaussien.
+La tâche consiste à prédire les 20 prochains points (futur) à partir des 50 points précédents (passé).
+
+\subsection{Architecture Seq2Seq avec Cross-Attention}
+Le modèle implémenté (\texttt{Part2/src/model.py}) suit l'architecture classique Encodeur-Décodeur augmentée par l'attention :
+
+\begin{enumerate}
+    \item \textbf{Encodeur Bi-LSTM} : Traite la séquence d'entrée dans les deux sens (passé vers futur et futur vers passé) pour capturer un contexte riche. Les états cachés complets $H_{enc}$ sont transmis.
+    \item \textbf{Décodeur LSTM} : Initialisé avec les états finaux de l'encodeur. Il génère la séquence de sortie pas à pas.
+    \item \textbf{Cross-Attention} : À chaque pas de temps $t$ du décodeur :
+    \begin{itemize}
+        \item \textbf{Query} : État caché courant du décodeur $h_{dec}(t)$.
+        \item \textbf{Values/Keys} : Ensemble des états de l'encodeur $H_{enc}$.
+        \item Le contexte généré est concaténé avec la sortie du décodeur avant la prédiction finale.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Analyse MLOps et "Attention Span"}
+L'intégration de \textbf{MLflow} nous a permis de suivre les métriques d'entraînement (Loss train/val) et d'archiver les artefacts (modèles, figures).
+
+\subsubsection{Concept d'Attention Span}
+La "portée d'attention" mesure la capacité du modèle à aller chercher de l'information loin dans le passé.
+Pour l'analyser, nous avons extrait la matrice d'attention $A \in \mathbb{R}^{T_{out} \times T_{in}}$ après l'entraînement.
+\[ A_{ij} = \text{Poids accordé par le pas de déodage } i \text{ au pas d'encodage } j \]
+
+\subsubsection{Interprétation des Résultats}
+La Heatmap générée (\texttt{attention\_heatmap.png}) révèle le comportement du modèle :
+\begin{itemize}
+    \item Une structure diagonale forte indique que le modèle apprend à "suivre" le signal temporellement (le point $t+1$ dépend fortement de $t$).
+    \item Une attention diffuse ou focalisée sur des points fixes indiquerait une stratégie de moyennage ou de mémorisation de points clés spécifiques.
+    \item Dans notre cas, la présence de motifs périodiques dans les poids d'attention confirme que le modèle a capturé la nature cyclique (sinusoïdale) des données générées.
+\end{itemize}
+
+\section{Discussion et Conclusion}
+Ce TP a permis de mettre en pratique les mécanismes d'attention. L'approche modulaire a facilité la compréhension de l'interaction entre les composantes récurrentes et les modules d'attention.
+Les résultats sur données synthétiques valident l'implémentation. Le modèle Seq2Seq avec Cross-Attention parvient à capturer les dépendances nécessaires pour la prédiction, comme visualisé par les cartes d'attention.
+L'intégration de MLflow offre une traçabilité essentielle pour les expérimentations futures plus complexes (Partie 3).
+
+\section*{Références}
+\begin{enumerate}
+    \item Vaswani, A., et al. (2017). Attention Is All You Need. NeurIPS.
+    \item Bahdanau, D., Cho, K., \& Bengio, Y. (2014). Neural Machine Translation by Jointly Learning to Align and Translate. ICLR.
+\end{enumerate}
+
+\end{document}
