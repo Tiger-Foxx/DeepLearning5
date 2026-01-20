@@ -1,0 +1,55 @@
+% neurips_2024.sty - NeurIPS 2024 style file
+% Simplified version for compatibility
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{neurips_2024}[2024/01/01 NeurIPS 2024 Style]
+
+% Options
+\newif\if@final\@finalfalse
+\DeclareOption{final}{\@finaltrue}
+\ProcessOptions\relax
+
+% Page layout
+\RequirePackage[
+    letterpaper,
+    top=1in,
+    bottom=1in,
+    left=1in,
+    right=1in
+]{geometry}
+
+% Typography
+\RequirePackage{times}
+\RequirePackage{mathptmx}
+
+% Section formatting
+\RequirePackage{titlesec}
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+% Abstract
+\renewenvironment{abstract}{%
+    \centerline{\large\bfseries Abstract}%
+    \vspace{0.5em}%
+    \begin{quote}%
+}{%
+    \end{quote}%
+    \vspace{1em}%
+}
+
+% Author formatting (simple version for compatibility)
+\newcommand{\And}{\quad\quad}
+
+% Title
+\let\@oldmaketitle\maketitle
+\renewcommand{\maketitle}{%
+    \@oldmaketitle%
+    \thispagestyle{empty}%
+}
+
+% No page numbers for final
+\if@final
+    \pagestyle{plain}
+\fi
+
+\endinput
